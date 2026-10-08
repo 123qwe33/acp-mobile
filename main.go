@@ -565,6 +565,90 @@ func handleSpawn(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }
 
+// findPidByBufferName probes active sockets in parallel and returns the
+// acp-multiplex PID whose session matches bufferName. Returns 0 if not found.
+func findPidByBufferName(bufferName string) int {
+	socks := discoverSockets()
+	if len(socks) == 0 {
+		return 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	type result struct {
+		pid int
+		buf string
+	}
+	ch := make(chan result, len(socks))
+	for _, s := range socks {
+		s := s
+		go func() {
+			info := probeSocket(s.path, s.pid)
+			ch <- result{s.pid, info.BufferName}
+		}()
+	}
+	for i := 0; i < len(socks); i++ {
+		select {
+		case r := <-ch:
+			if r.buf == bufferName {
+				return r.pid
+			}
+		case <-ctx.Done():
+			return 0
+		}
+	}
+	return 0
+}
+
+// buildBufferPidMap probes all active sockets in parallel and returns a map
+// from buffer name to acp-multiplex PID.
+func buildBufferPidMap() map[string]int {
+	socks := discoverSockets()
+	m := make(map[string]int, len(socks))
+	if len(socks) == 0 {
+		return m
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	type result struct {
+		pid int
+		buf string
+	}
+	ch := make(chan result, len(socks))
+	for _, s := range socks {
+		s := s
+		go func() {
+			info := probeSocket(s.path, s.pid)
+			select {
+			case ch <- result{s.pid, info.BufferName}:
+			case <-ctx.Done():
+			}
+		}()
+	}
+	for i := 0; i < len(socks); i++ {
+		select {
+		case r := <-ch:
+			if r.buf != "" {
+				m[r.buf] = r.pid
+			}
+		case <-ctx.Done():
+			return m
+		}
+	}
+	return m
+}
+
+// cleanupMultiplexProcess sends SIGTERM to an acp-multiplex process and
+// removes its socket file. Safe to call when the process is already gone.
+func cleanupMultiplexProcess(pid int) {
+	syscall.Kill(pid, syscall.SIGTERM)
+	sockPath := findSocket(strconv.Itoa(pid))
+	if sockPath != "" {
+		os.Remove(sockPath)
+	}
+}
+
 func handleKill(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -590,6 +674,13 @@ func handleKill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Find the acp-multiplex PID before killing the buffer. On standard Emacs
+	// kill-buffer closes the pipe and the process exits naturally; SIGTERM is a
+	// harmless no-op. On Flatpak Emacs (Steam Deck), the host process is
+	// re-parented to init and survives kill-buffer, so the explicit signal is
+	// required to actually clean up the session.
+	pid := findPidByBufferName(req.BufferName)
+
 	// Escape for elisp string
 	escaped := strings.ReplaceAll(req.BufferName, `\`, `\\`)
 	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
@@ -604,8 +695,16 @@ func handleKill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := strings.TrimSpace(string(out))
-	if result == "nil" {
+	bufferKilled := strings.TrimSpace(string(out)) != "nil"
+
+	// Kill the host process and remove its socket regardless of whether the
+	// Emacs buffer existed. This cleans up both live sessions and stale sockets
+	// left behind by processes that outlived their Emacs buffer.
+	if pid > 0 {
+		cleanupMultiplexProcess(pid)
+	}
+
+	if !bufferKilled && pid == 0 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": "session not found or already closed"})
@@ -630,6 +729,8 @@ func handleKillBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pidByBuffer := buildBufferPidMap()
+
 	var errs []string
 	for _, bufferName := range req.BufferNames {
 		if !validBufferName.MatchString(bufferName) {
@@ -643,6 +744,9 @@ func handleKillBatch(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("kill-batch: %v: %s", err, out)
 			errs = append(errs, fmt.Sprintf("%s: %v", bufferName, err))
+		}
+		if pid, ok := pidByBuffer[bufferName]; ok {
+			cleanupMultiplexProcess(pid)
 		}
 	}
 
