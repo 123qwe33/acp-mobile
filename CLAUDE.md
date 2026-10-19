@@ -2,6 +2,23 @@
 
 Mobile web frontend for ACP (Agent Communication Protocol) sessions.
 
+## Build & Deploy
+
+`index.html` is embedded into the Go binary at compile time via `//go:embed`. Every change to `index.html` (or any `.go` file) requires a full rebuild before the change takes effect — the running service serves the binary's embedded copy, not the file on disk.
+
+```bash
+# Build
+CGO_ENABLED=0 go build -o acp-mobile .
+
+# Install (binary will be in use if service is running — use atomic replace)
+cp acp-mobile /path/to/bin/acp-mobile.new && mv /path/to/bin/acp-mobile.new /path/to/bin/acp-mobile
+
+# Restart (deployment-specific — check local docs/brain for service name)
+# systemctl --user restart acp-mobile
+```
+
+**Clipboard API note:** `navigator.clipboard.writeText()` requires a secure context (HTTPS or localhost). On HTTP deployments (e.g. over a VPN/tunnel without TLS), it will silently fail. `copyText()` in `index.html` includes an `execCommand('copy')` fallback for this case.
+
 ## Debugging
 
 Use `ssh fugue` for testing. Start acp-mobile in test mode on a separate port:
