@@ -257,6 +257,11 @@ body {
   user-select: text; -webkit-user-select: text;
 }
 .msg.agent .role { color: #aaa; }
+.msg-header { display: flex; align-items: center; justify-content: space-between; }
+.msg-copy-btn {
+  background: transparent; border: none; color: #666;
+  font-size: 13px; cursor: pointer; padding: 0 4px;
+}
 
 /* Thought messages */
 .msg.thought {
@@ -756,10 +761,13 @@ function addAgentMsg(text) {
   d.className = 'msg agent';
   d.id = 'msg-' + (++msgIdCounter);
   d.innerHTML =
-    '<span class="role">Agent</span>' +
+    '<div class="msg-header">' +
+      '<span class="role">Agent</span>' +
+      '<button class="msg-copy-btn" title="Copy">⎘</button>' +
+    '</div>' +
     '<div class="md">' + renderMarkdown(text) + '</div>';
   d._text = text;
-  d.addEventListener('contextmenu', (e) => { e.preventDefault(); copyText(d._text); });
+  d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
   messagesEl.appendChild(d);
   if (isAtBottom) scrollToBottom();
   return d;
@@ -1100,9 +1108,23 @@ function addPlanApprovalButtons(toolEl) {
 }
 
 function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('Copied to clipboard');
-  }).catch(() => {});
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('Copied to clipboard');
+    }).catch(() => { copyTextFallback(text); });
+  } else {
+    copyTextFallback(text);
+  }
+}
+function copyTextFallback(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); showToast('Copied to clipboard'); }
+  catch(e) { showToast('Copy failed'); }
+  document.body.removeChild(ta);
 }
 
 function showToast(msg) {
@@ -1289,9 +1311,13 @@ function renderTurnBatch(turns, prepend) {
         d.className = 'msg agent';
         d.id = 'msg-' + (++msgIdCounter);
         d.innerHTML =
-          '<span class="role">Agent</span>' +
+          '<div class="msg-header">' +
+            '<span class="role">Agent</span>' +
+            '<button class="msg-copy-btn" title="Copy">⎘</button>' +
+          '</div>' +
           '<div class="md">' + renderMarkdown(t.text) + '</div>';
         d._text = t.text;
+        d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
         fragment.appendChild(d);
         break;
       }
