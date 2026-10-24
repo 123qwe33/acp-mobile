@@ -240,6 +240,7 @@ body {
 .msg.user {
   background: #007AFF; max-width: 85%; align-self: flex-end;
   margin-left: auto;
+  user-select: text; -webkit-user-select: text;
 }
 .msg.user .role { color: rgba(255,255,255,0.7); }
 .msg.user .text { color: #fff; font-size: 15px; line-height: 22px; }
@@ -262,6 +263,7 @@ body {
   background: transparent; border: none; color: #666;
   font-size: 13px; cursor: pointer; padding: 0 4px;
 }
+.msg.user .msg-copy-btn { color: rgba(255,255,255,0.6); }
 
 /* Thought messages */
 .msg.thought {
@@ -741,11 +743,15 @@ function addUserMsg(text, status) {
   const time = formatTime(new Date());
   const deliveryIcon = status === 'queued' ? '&#9201;' : status === 'sending' ? '&#9675;' : '&#10003;';
   d.innerHTML =
-    '<span class="role">You</span>' +
+    '<div class="msg-header">' +
+      '<span class="role">You</span>' +
+      '<button class="msg-copy-btn" title="Copy">⎘</button>' +
+    '</div>' +
     '<div class="text">' + escHtml(text) + '</div>' +
     '<div class="meta"><span class="time">' + time + '</span>' +
     '<span class="delivery">' + deliveryIcon + '</span></div>';
-  d.addEventListener('contextmenu', (e) => { e.preventDefault(); copyText(text); });
+  d._text = text;
+  d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(text); });
   messagesEl.appendChild(d);
   if (isAtBottom) scrollToBottom();
   return d;
@@ -1299,10 +1305,15 @@ function renderTurnBatch(turns, prepend) {
         d.id = 'msg-' + (++msgIdCounter);
         const time = formatTime(new Date());
         d.innerHTML =
-          '<span class="role">You</span>' +
+          '<div class="msg-header">' +
+            '<span class="role">You</span>' +
+            '<button class="msg-copy-btn" title="Copy">⎘</button>' +
+          '</div>' +
           '<div class="text">' + escHtml(t.text) + '</div>' +
           '<div class="meta"><span class="time">' + time + '</span>' +
           '<span class="delivery">&#10003;</span></div>';
+        d._text = t.text;
+        d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
         fragment.appendChild(d);
         break;
       }
