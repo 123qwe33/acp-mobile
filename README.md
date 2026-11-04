@@ -13,6 +13,8 @@ Discovers all live acp-multiplex sockets on the machine, groups them by project,
 - **Session discovery** — automatically finds all active acp-multiplex sockets, groups by project
 - **Chat interface** — WebSocket bridge to any session with markdown rendering, streaming, tool call display
 - **File browser** — browse and view files from session working directories
+- **Copy button** — copy any message to clipboard (with execCommand fallback for HTTP deployments)
+- **TTS button** — speak any message aloud via the Web Speech API; strips markdown before speaking agent messages
 - **Auth** — random 256-bit authkey (generated on first run, stored in `~/.acp-mobile/authkey`)
 - **Security hardening** — CSRF protection, DNS rebinding protection, CSP headers, XSS-safe markdown
 

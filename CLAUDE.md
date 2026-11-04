@@ -11,13 +11,25 @@ Mobile web frontend for ACP (Agent Communication Protocol) sessions.
 CGO_ENABLED=0 go build -o acp-mobile .
 
 # Install (binary will be in use if service is running — use atomic replace)
-cp acp-mobile /path/to/bin/acp-mobile.new && mv /path/to/bin/acp-mobile.new /path/to/bin/acp-mobile
+cp acp-mobile ~/bin/acp-mobile.new && mv ~/bin/acp-mobile.new ~/bin/acp-mobile
 
-# Restart (deployment-specific — check local docs/brain for service name)
-# systemctl --user restart acp-mobile
+# Restart
+systemctl --user restart acp-mobile
 ```
 
 **Clipboard API note:** `navigator.clipboard.writeText()` requires a secure context (HTTPS or localhost). On HTTP deployments (e.g. over a VPN/tunnel without TLS), it will silently fail. `copyText()` in `index.html` includes an `execCommand('copy')` fallback for this case.
+
+## Deployments
+
+This binary runs on three hosts — all on port 8090, all as a user systemd service:
+
+| Host | SSH alias | Notes |
+|---|---|---|
+| hal | (local) | Primary; `systemctl --user restart acp-mobile` |
+| beast | `ssh beast` | Geoff's PC; Tailscale 100.107.203.94 |
+| steamdeck | `ssh steamdeck` | SteamOS; Emacs is Flatpak (sockets via `flatpak-spawn --host`) |
+
+To deploy to a remote host: `scp index.html <host>:~/code/acp-mobile/ && ssh <host> 'cd ~/code/acp-mobile && CGO_ENABLED=0 go build -o acp-mobile . && cp acp-mobile ~/bin/acp-mobile.new && mv ~/bin/acp-mobile.new ~/bin/acp-mobile && systemctl --user restart acp-mobile'`
 
 ## Debugging
 
