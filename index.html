@@ -259,11 +259,11 @@ body {
 }
 .msg.agent .role { color: #aaa; }
 .msg-header { display: flex; align-items: center; justify-content: space-between; }
-.msg-copy-btn {
+.msg-bubble-btn {
   background: transparent; border: none; color: #666;
   font-size: 13px; cursor: pointer; padding: 0 4px;
 }
-.msg.user .msg-copy-btn { color: rgba(255,255,255,0.6); }
+.msg.user .msg-bubble-btn { color: rgba(255,255,255,0.6); }
 
 /* Thought messages */
 .msg.thought {
@@ -643,6 +643,7 @@ let replayBuffer = [];
 let replayTimer = null;
 let allReplayTurns = [];  // Full history from replay
 let renderedTurnStart = 0; // Index into allReplayTurns of first rendered turn
+let currentSpeakEl = null;
 // Mode display: look up name from availableModes, fall back to id
 function modeName(id) {
   const mode = availableModes.find(m => m.id === id);
@@ -736,6 +737,44 @@ function formatTime(d) {
 
 // --- Message display ---
 
+function stripMarkdownForSpeech(text) {
+  return text
+    .replace(/```[\s\S]*?```/g, 'code block')
+    .replace(/`[^`]+`/g, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^[-*]\s+/gm, '')
+    .replace(/^>\s+/gm, '')
+    .replace(/^---+$/gm, '')
+    .trim();
+}
+
+function speakMsg(d, rawText) {
+  const btn = d.querySelector('.msg-tts-btn');
+  if (currentSpeakEl === d) {
+    speechSynthesis.cancel();
+    currentSpeakEl = null;
+    btn.textContent = '🔊';
+    return;
+  }
+  if (currentSpeakEl) {
+    const prevBtn = currentSpeakEl.querySelector('.msg-tts-btn');
+    if (prevBtn) prevBtn.textContent = '🔊';
+    speechSynthesis.cancel();
+  }
+  currentSpeakEl = d;
+  btn.textContent = '🔇';
+  const utter = new SpeechSynthesisUtterance(rawText);
+  utter.onend = utter.onerror = () => {
+    if (currentSpeakEl === d) currentSpeakEl = null;
+    btn.textContent = '🔊';
+  };
+  window.speechSynthesis.speak(utter);
+}
+
 function addUserMsg(text, status) {
   const d = document.createElement('div');
   d.className = 'msg user';
@@ -745,13 +784,15 @@ function addUserMsg(text, status) {
   d.innerHTML =
     '<div class="msg-header">' +
       '<span class="role">You</span>' +
-      '<button class="msg-copy-btn" title="Copy">⎘</button>' +
+      '<button class="msg-bubble-btn msg-copy-btn" title="Copy">⎘</button>' +
+      '<button class="msg-bubble-btn msg-tts-btn" title="Speak">🔊</button>' +
     '</div>' +
     '<div class="text">' + escHtml(text) + '</div>' +
     '<div class="meta"><span class="time">' + time + '</span>' +
     '<span class="delivery">' + deliveryIcon + '</span></div>';
   d._text = text;
   d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(text); });
+  d.querySelector('.msg-tts-btn').addEventListener('click', (e) => { e.stopPropagation(); speakMsg(d, d._text); });
   messagesEl.appendChild(d);
   if (isAtBottom) scrollToBottom();
   return d;
@@ -769,11 +810,13 @@ function addAgentMsg(text) {
   d.innerHTML =
     '<div class="msg-header">' +
       '<span class="role">Agent</span>' +
-      '<button class="msg-copy-btn" title="Copy">⎘</button>' +
+      '<button class="msg-bubble-btn msg-copy-btn" title="Copy">⎘</button>' +
+      '<button class="msg-bubble-btn msg-tts-btn" title="Speak">🔊</button>' +
     '</div>' +
     '<div class="md">' + renderMarkdown(text) + '</div>';
   d._text = text;
   d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
+  d.querySelector('.msg-tts-btn').addEventListener('click', (e) => { e.stopPropagation(); speakMsg(d, stripMarkdownForSpeech(d._text)); });
   messagesEl.appendChild(d);
   if (isAtBottom) scrollToBottom();
   return d;
@@ -1307,13 +1350,15 @@ function renderTurnBatch(turns, prepend) {
         d.innerHTML =
           '<div class="msg-header">' +
             '<span class="role">You</span>' +
-            '<button class="msg-copy-btn" title="Copy">⎘</button>' +
+            '<button class="msg-bubble-btn msg-copy-btn" title="Copy">⎘</button>' +
+            '<button class="msg-bubble-btn msg-tts-btn" title="Speak">🔊</button>' +
           '</div>' +
           '<div class="text">' + escHtml(t.text) + '</div>' +
           '<div class="meta"><span class="time">' + time + '</span>' +
           '<span class="delivery">&#10003;</span></div>';
         d._text = t.text;
         d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
+        d.querySelector('.msg-tts-btn').addEventListener('click', (e) => { e.stopPropagation(); speakMsg(d, d._text); });
         fragment.appendChild(d);
         break;
       }
@@ -1324,11 +1369,13 @@ function renderTurnBatch(turns, prepend) {
         d.innerHTML =
           '<div class="msg-header">' +
             '<span class="role">Agent</span>' +
-            '<button class="msg-copy-btn" title="Copy">⎘</button>' +
+            '<button class="msg-bubble-btn msg-copy-btn" title="Copy">⎘</button>' +
+            '<button class="msg-bubble-btn msg-tts-btn" title="Speak">🔊</button>' +
           '</div>' +
           '<div class="md">' + renderMarkdown(t.text) + '</div>';
         d._text = t.text;
         d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
+        d.querySelector('.msg-tts-btn').addEventListener('click', (e) => { e.stopPropagation(); speakMsg(d, stripMarkdownForSpeech(d._text)); });
         fragment.appendChild(d);
         break;
       }
@@ -2272,6 +2319,8 @@ async function batchDelete() {
 }
 
 function selectSession(session) {
+  speechSynthesis.cancel();
+  currentSpeakEl = null;
   markViewed(session.pid);
   currentSockPid = session.pid;
   messagesEl.innerHTML = '';
@@ -2300,6 +2349,8 @@ function showChat() {
 }
 
 function showNavigator() {
+  speechSynthesis.cancel();
+  currentSpeakEl = null;
   chatViewEl.classList.remove('visible');
   navigatorEl.classList.remove('hidden');
   // Disconnect current websocket
