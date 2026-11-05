@@ -31,6 +31,14 @@ body {
   font-size: 14px; cursor: pointer; padding: 4px 8px;
 }
 #nav-header .nav-btn:active { opacity: 0.6; }
+#settings-panel {
+  background: #1a1a1a; border-bottom: 1px solid #333;
+  padding: 12px 16px; display: none;
+}
+#settings-panel.open { display: flex; align-items: center; gap: 12px; }
+#settings-panel label { font-size: 13px; color: #aaa; white-space: nowrap; }
+#tts-rate-slider { flex: 1; accent-color: #007AFF; }
+#tts-rate-value { font-size: 13px; color: #fff; min-width: 32px; text-align: right; }
 #nav-list {
   flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
@@ -521,6 +529,12 @@ body {
     <button class="nav-btn" id="select-btn">Select</button>
     <button class="nav-btn" id="batch-delete-btn" style="display:none;color:#F44336">Delete</button>
     <button class="nav-btn" id="refresh-btn">&#8635;</button>
+    <button class="nav-btn" id="settings-btn" title="Settings">&#9881;</button>
+  </div>
+  <div id="settings-panel">
+    <label for="tts-rate-slider">Speech rate</label>
+    <input type="range" id="tts-rate-slider" min="0.5" max="2" step="0.1" value="1">
+    <span id="tts-rate-value">1.0×</span>
   </div>
   <div id="nav-list"></div>
 </div>
@@ -644,6 +658,7 @@ let replayTimer = null;
 let allReplayTurns = [];  // Full history from replay
 let renderedTurnStart = 0; // Index into allReplayTurns of first rendered turn
 let currentSpeakEl = null;
+let ttsRate = parseFloat(localStorage.getItem('ttsRate') || '1');
 // Mode display: look up name from availableModes, fall back to id
 function modeName(id) {
   const mode = availableModes.find(m => m.id === id);
@@ -768,6 +783,7 @@ function speakMsg(d, rawText) {
   currentSpeakEl = d;
   btn.textContent = '🔇';
   const utter = new SpeechSynthesisUtterance(rawText);
+  utter.rate = ttsRate;
   utter.onend = utter.onerror = () => {
     if (currentSpeakEl === d) currentSpeakEl = null;
     btn.textContent = '🔊';
@@ -2485,6 +2501,21 @@ document.getElementById('spawn-btn').addEventListener('click', spawnAgent);
 document.getElementById('select-btn').addEventListener('click', toggleSelecting);
 document.getElementById('batch-delete-btn').addEventListener('click', batchDelete);
 document.getElementById('refresh-btn').addEventListener('click', loadSessions);
+(function() {
+  const panel = document.getElementById('settings-panel');
+  const slider = document.getElementById('tts-rate-slider');
+  const rateVal = document.getElementById('tts-rate-value');
+  slider.value = ttsRate;
+  rateVal.textContent = ttsRate.toFixed(1) + '×';
+  document.getElementById('settings-btn').addEventListener('click', () => {
+    panel.classList.toggle('open');
+  });
+  slider.addEventListener('input', () => {
+    ttsRate = parseFloat(slider.value);
+    rateVal.textContent = ttsRate.toFixed(1) + '×';
+    localStorage.setItem('ttsRate', ttsRate);
+  });
+})();
 document.getElementById('back-btn').addEventListener('click', navigateBack);
 document.getElementById('mode-btn').addEventListener('click', cycleMode);
 document.getElementById('files-btn').addEventListener('click', openFileBrowser);
