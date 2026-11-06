@@ -658,7 +658,8 @@ let replayTimer = null;
 let allReplayTurns = [];  // Full history from replay
 let renderedTurnStart = 0; // Index into allReplayTurns of first rendered turn
 let currentSpeakEl = null;
-let ttsRate = parseFloat(localStorage.getItem('ttsRate') || '1');
+let ttsRate = parseFloat(localStorage.getItem('ttsRate'));
+if (isNaN(ttsRate) || ttsRate < 0.1 || ttsRate > 10) ttsRate = 1;
 // Mode display: look up name from availableModes, fall back to id
 function modeName(id) {
   const mode = availableModes.find(m => m.id === id);
@@ -784,7 +785,11 @@ function speakMsg(d, rawText) {
   btn.textContent = '🔇';
   const utter = new SpeechSynthesisUtterance(rawText);
   utter.rate = ttsRate;
-  utter.onend = utter.onerror = () => {
+  utter.onend = () => {
+    if (currentSpeakEl === d) currentSpeakEl = null;
+    btn.textContent = '🔊';
+  };
+  utter.onerror = () => {
     if (currentSpeakEl === d) currentSpeakEl = null;
     btn.textContent = '🔊';
   };

@@ -174,6 +174,12 @@ func (rl *rateLimiter) record(ip string) {
 
 var testMode bool
 
+func certPaths(hostname string) (certFile, keyFile string) {
+	home, _ := os.UserHomeDir()
+	dir := filepath.Join(home, ".acp-mobile")
+	return filepath.Join(dir, hostname+".crt"), filepath.Join(dir, hostname+".key")
+}
+
 func main() {
 	appConfig = loadConfig()
 
@@ -273,6 +279,18 @@ func main() {
 		}
 	}
 
+	// Detect TLS cert for Tailscale hostname — must be before handler closure
+	var tlsEnabled bool
+	var certFile, keyFile string
+	if tsErr == nil {
+		certFile, keyFile = certPaths(ts.Hostname)
+		if _, err := os.Stat(certFile); err == nil {
+			if _, err := os.Stat(keyFile); err == nil {
+				tlsEnabled = true
+			}
+		}
+	}
+
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// DNS rebinding protection
 		host := r.Host
@@ -306,6 +324,7 @@ func main() {
 				Value:    authKey,
 				Path:     "/",
 				HttpOnly: true,
+				Secure:   tlsEnabled,
 				SameSite: http.SameSiteStrictMode,
 			})
 			// Redirect to strip authkey from URL
@@ -334,7 +353,11 @@ func main() {
 	// Write link file
 	link := fmt.Sprintf("http://127.0.0.1:%s?authkey=%s", port, authKey)
 	if tsErr == nil {
-		link = fmt.Sprintf("http://%s:%s?authkey=%s", ts.Hostname, port, authKey)
+		scheme := "http"
+		if tlsEnabled {
+			scheme = "https"
+		}
+		link = fmt.Sprintf("%s://%s:%s?authkey=%s", scheme, ts.Hostname, port, authKey)
 	}
 	log.Printf("acp-mobile: %s", link)
 	linkPath := filepath.Join(filepath.Dir(authKeyPath()), "link")
@@ -360,14 +383,20 @@ func main() {
 		}
 	}
 
-	// Listen on localhost
+	// Listen on localhost (always HTTP — cert is scoped to Tailscale hostname)
 	go func() {
 		log.Fatal(makeServer(fmt.Sprintf("127.0.0.1:%s", port)).ListenAndServe())
 	}()
 	// Listen on Tailscale IP if available
 	if tsErr == nil && ts.IP != "" {
-		log.Printf("acp-mobile: also listening on %s:%s", ts.IP, port)
-		log.Fatal(makeServer(fmt.Sprintf("%s:%s", ts.IP, port)).ListenAndServe())
+		srv := makeServer(fmt.Sprintf("%s:%s", ts.IP, port))
+		if tlsEnabled {
+			log.Printf("acp-mobile: also listening on %s:%s (TLS)", ts.IP, port)
+			log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
+		} else {
+			log.Printf("acp-mobile: also listening on %s:%s", ts.IP, port)
+			log.Fatal(srv.ListenAndServe())
+		}
 	} else {
 		select {}
 	}

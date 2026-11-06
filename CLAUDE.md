@@ -19,6 +19,35 @@ systemctl --user restart acp-mobile
 
 **Clipboard API note:** `navigator.clipboard.writeText()` requires a secure context (HTTPS or localhost). On HTTP deployments (e.g. over a VPN/tunnel without TLS), it will silently fail. `copyText()` in `index.html` includes an `execCommand('copy')` fallback for this case.
 
+## TLS / HTTPS
+
+`main.go` automatically serves the Tailscale listener over HTTPS if cert files are present at `~/.acp-mobile/<tailscale-hostname>.crt` and `.key`. The localhost listener (`127.0.0.1`) always stays HTTP.
+
+**Generating a cert (run on each host):**
+
+```bash
+# On hal:
+tailscale cert --cert-file ~/.acp-mobile/hal.tail2eccf6.ts.net.crt \
+               --key-file  ~/.acp-mobile/hal.tail2eccf6.ts.net.key \
+               hal.tail2eccf6.ts.net
+
+# On beast (run via ssh beast):
+tailscale cert --cert-file ~/.acp-mobile/beast.tail2eccf6.ts.net.crt \
+               --key-file  ~/.acp-mobile/beast.tail2eccf6.ts.net.key \
+               beast.tail2eccf6.ts.net
+
+# On steamdeck (run via ssh steamdeck):
+tailscale cert --cert-file ~/.acp-mobile/steamdeck.tail2eccf6.ts.net.crt \
+               --key-file  ~/.acp-mobile/steamdeck.tail2eccf6.ts.net.key \
+               steamdeck.tail2eccf6.ts.net
+```
+
+Certs expire after ~90 days. Re-run the same command to renew — `tailscale cert` is idempotent and updates the files in place. Restart the service after renewal.
+
+If no cert is found at startup, the service falls back to plain HTTP on both listeners (safe for dev or non-Tailscale hosts).
+
+**Note:** The first time you switch from HTTP to HTTPS you'll need to re-authenticate — the old cookie won't be sent over the new HTTPS connection. Open the `https://` link from `~/.acp-mobile/link` to get a new cookie.
+
 ## Deployments
 
 This binary runs on three hosts — all on port 8090, all as a user systemd service:
