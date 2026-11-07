@@ -552,6 +552,7 @@ body {
     <button class="files-btn" id="files-btn">Files</button>
     <button class="files-btn" id="kill-btn" style="color:#F44336;border-color:#F44336;display:none">Kill</button>
     <button class="notification-btn" id="notification-btn" title="Toggle Notifications">🔔</button>
+    <button class="notification-btn" id="autospeak-btn" title="Auto-speak">🗣</button>
   </div>
 </div>
 <div id="file-browser">
@@ -645,6 +646,20 @@ function playNotification() {
   } catch (e) {}
 }
 updateNotificationUI();
+
+// Auto-speak state
+const autoSpeakBtn = document.getElementById('autospeak-btn');
+let autoSpeakEnabled = localStorage.getItem('acp-autospeak') === 'true';
+function updateAutoSpeakUI() {
+  autoSpeakBtn.classList.toggle('muted', !autoSpeakEnabled);
+  autoSpeakBtn.innerHTML = autoSpeakEnabled ? '🗣' : '🔇';
+}
+autoSpeakBtn.onclick = () => {
+  autoSpeakEnabled = !autoSpeakEnabled;
+  localStorage.setItem('acp-autospeak', autoSpeakEnabled);
+  updateAutoSpeakUI();
+};
+updateAutoSpeakUI();
 
 // Permission state
 let pendingPermissions = []; // [{id, element}]
@@ -1882,6 +1897,9 @@ function handleMessage(msg) {
         break;
 
       case 'turn_complete':
+        if (autoSpeakEnabled && currentAgentMsg) {
+          speakMsg(currentAgentMsg, stripMarkdownForSpeech(currentAgentMsg._text));
+        }
         currentAgentMsg = null;
         setProcessing(false);
         if (lastSentMsg) { markSent(lastSentMsg); lastSentMsg = null; }
