@@ -783,6 +783,37 @@ function stripMarkdownForSpeech(text) {
     .trim();
 }
 
+function splitSpeechChunks(text, maxLen = 200) {
+  // Chrome silently drops SpeechSynthesisUtterances longer than ~200 chars.
+  // Split at sentence boundaries first, then word boundaries if a sentence
+  // is still too long.
+  const sentences = text.match(/[^.!?\n]+(?:[.!?]+|\n+|$)/g) || [text];
+  const chunks = [];
+  let current = '';
+  for (const sentence of sentences) {
+    if (sentence.length > maxLen) {
+      // Sentence itself is too long — split at word boundaries
+      if (current) { chunks.push(current.trim()); current = ''; }
+      const words = sentence.split(/\s+/);
+      for (const word of words) {
+        if ((current + ' ' + word).trim().length > maxLen && current) {
+          chunks.push(current.trim());
+          current = word;
+        } else {
+          current = current ? current + ' ' + word : word;
+        }
+      }
+    } else if ((current + sentence).length > maxLen && current) {
+      chunks.push(current.trim());
+      current = sentence;
+    } else {
+      current += sentence;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.filter(c => c.length > 0);
+}
+
 function speakMsg(d, rawText) {
   const btn = d.querySelector('.msg-tts-btn');
   if (currentSpeakEl === d) {
@@ -798,17 +829,29 @@ function speakMsg(d, rawText) {
   }
   currentSpeakEl = d;
   btn.textContent = '🔇';
-  const utter = new SpeechSynthesisUtterance(rawText);
-  utter.rate = ttsRate;
-  utter.onend = () => {
+
+  const chunks = splitSpeechChunks(rawText);
+  let heartbeat = null;
+
+  function finish() {
+    clearInterval(heartbeat);
     if (currentSpeakEl === d) currentSpeakEl = null;
     btn.textContent = '🔊';
-  };
-  utter.onerror = () => {
-    if (currentSpeakEl === d) currentSpeakEl = null;
-    btn.textContent = '🔊';
-  };
-  window.speechSynthesis.speak(utter);
+  }
+
+  // Queue all chunks synchronously — every speak() is in the user gesture context
+  chunks.forEach((chunk, i) => {
+    const utter = new SpeechSynthesisUtterance(chunk);
+    utter.rate = ttsRate;
+    if (i === chunks.length - 1) utter.onend = finish;
+    utter.onerror = () => { speechSynthesis.cancel(); finish(); };
+    speechSynthesis.speak(utter);
+  });
+
+  // Heartbeat defeats Chrome's ~15s silent-pause bug
+  heartbeat = setInterval(() => {
+    if (speechSynthesis.paused) speechSynthesis.resume();
+  }, 10000);
 }
 
 function addUserMsg(text, status) {
