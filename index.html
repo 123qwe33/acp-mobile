@@ -854,6 +854,15 @@ function speakMsg(d, rawText) {
   }, 10000);
 }
 
+function attachMsgBubbleBtns(d, isMarkdown) {
+  d.querySelector('.msg-header').insertAdjacentHTML('beforeend',
+    '<button class="msg-bubble-btn msg-copy-btn" title="Copy">⎘</button>' +
+    '<button class="msg-bubble-btn msg-tts-btn" title="Speak">🔊</button>'
+  );
+  d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
+  d.querySelector('.msg-tts-btn').addEventListener('click', (e) => { e.stopPropagation(); speakMsg(d, isMarkdown ? stripMarkdownForSpeech(d._text) : d._text); });
+}
+
 function addUserMsg(text, status) {
   const d = document.createElement('div');
   d.className = 'msg user';
@@ -863,15 +872,12 @@ function addUserMsg(text, status) {
   d.innerHTML =
     '<div class="msg-header">' +
       '<span class="role">You</span>' +
-      '<button class="msg-bubble-btn msg-copy-btn" title="Copy">⎘</button>' +
-      '<button class="msg-bubble-btn msg-tts-btn" title="Speak">🔊</button>' +
     '</div>' +
     '<div class="text">' + escHtml(text) + '</div>' +
     '<div class="meta"><span class="time">' + time + '</span>' +
     '<span class="delivery">' + deliveryIcon + '</span></div>';
   d._text = text;
-  d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(text); });
-  d.querySelector('.msg-tts-btn').addEventListener('click', (e) => { e.stopPropagation(); speakMsg(d, d._text); });
+  attachMsgBubbleBtns(d, false);
   messagesEl.appendChild(d);
   if (isAtBottom) scrollToBottom();
   return d;
@@ -889,13 +895,10 @@ function addAgentMsg(text) {
   d.innerHTML =
     '<div class="msg-header">' +
       '<span class="role">Agent</span>' +
-      '<button class="msg-bubble-btn msg-copy-btn" title="Copy">⎘</button>' +
-      '<button class="msg-bubble-btn msg-tts-btn" title="Speak">🔊</button>' +
     '</div>' +
     '<div class="md">' + renderMarkdown(text) + '</div>';
   d._text = text;
-  d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
-  d.querySelector('.msg-tts-btn').addEventListener('click', (e) => { e.stopPropagation(); speakMsg(d, stripMarkdownForSpeech(d._text)); });
+  attachMsgBubbleBtns(d, true);
   messagesEl.appendChild(d);
   if (isAtBottom) scrollToBottom();
   return d;
@@ -1429,15 +1432,12 @@ function renderTurnBatch(turns, prepend) {
         d.innerHTML =
           '<div class="msg-header">' +
             '<span class="role">You</span>' +
-            '<button class="msg-bubble-btn msg-copy-btn" title="Copy">⎘</button>' +
-            '<button class="msg-bubble-btn msg-tts-btn" title="Speak">🔊</button>' +
           '</div>' +
           '<div class="text">' + escHtml(t.text) + '</div>' +
           '<div class="meta"><span class="time">' + time + '</span>' +
           '<span class="delivery">&#10003;</span></div>';
         d._text = t.text;
-        d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
-        d.querySelector('.msg-tts-btn').addEventListener('click', (e) => { e.stopPropagation(); speakMsg(d, d._text); });
+        attachMsgBubbleBtns(d, false);
         fragment.appendChild(d);
         break;
       }
@@ -1448,13 +1448,10 @@ function renderTurnBatch(turns, prepend) {
         d.innerHTML =
           '<div class="msg-header">' +
             '<span class="role">Agent</span>' +
-            '<button class="msg-bubble-btn msg-copy-btn" title="Copy">⎘</button>' +
-            '<button class="msg-bubble-btn msg-tts-btn" title="Speak">🔊</button>' +
           '</div>' +
           '<div class="md">' + renderMarkdown(t.text) + '</div>';
         d._text = t.text;
-        d.querySelector('.msg-copy-btn').addEventListener('click', (e) => { e.stopPropagation(); copyText(d._text); });
-        d.querySelector('.msg-tts-btn').addEventListener('click', (e) => { e.stopPropagation(); speakMsg(d, stripMarkdownForSpeech(d._text)); });
+        attachMsgBubbleBtns(d, true);
         fragment.appendChild(d);
         break;
       }
