@@ -136,16 +136,13 @@ body {
   display: flex; align-items: center; gap: 8px; flex-shrink: 0;
 }
 
-#header .files-btn {
+#header .header-action-btn {
   background: transparent; border: 1px solid #555; border-radius: 6px;
-  color: #ccc; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  color: #ccc; padding: 6px 10px; cursor: pointer;
 }
-#header .files-btn:active { opacity: 0.7; }
-#header .notification-btn {
-  background: transparent; border: 1px solid #555; border-radius: 6px;
-  color: #ccc; padding: 6px 10px; font-size: 14px; cursor: pointer;
-  line-height: 1;
-}
+#header .header-action-btn:active { opacity: 0.7; }
+#header .files-btn { font-size: 12px; }
+#header .notification-btn { font-size: 14px; line-height: 1; }
 #header .notification-btn.muted {
   color: #555; border-color: #333;
 }
