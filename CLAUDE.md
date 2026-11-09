@@ -4,7 +4,7 @@ Mobile web frontend for ACP (Agent Communication Protocol) sessions.
 
 ## Build & Deploy
 
-`index.html` is embedded into the Go binary at compile time via `//go:embed`. Every change to `index.html` (or any `.go` file) requires a full rebuild before the change takes effect — the running service serves the binary's embedded copy, not the file on disk.
+The `static/` directory (`static/index.html`, `static/style.css`, `static/app.js`) is embedded into the Go binary at compile time via `//go:embed all:static`. Every change to any file in `static/` (or any `.go` file) requires a full rebuild before the change takes effect — the running service serves the binary's embedded copy, not the files on disk.
 
 ```bash
 # Build
@@ -58,7 +58,7 @@ This binary runs on three hosts — all on port 8090, all as a user systemd serv
 | beast | `ssh beast` | Geoff's PC; Tailscale 100.107.203.94 |
 | steamdeck | `ssh steamdeck` | SteamOS; Emacs is Flatpak (sockets via `flatpak-spawn --host`) |
 
-To deploy to a remote host: `scp index.html <host>:~/code/acp-mobile/ && ssh <host> 'cd ~/code/acp-mobile && CGO_ENABLED=0 go build -o acp-mobile . && cp acp-mobile ~/bin/acp-mobile.new && mv ~/bin/acp-mobile.new ~/bin/acp-mobile && systemctl --user restart acp-mobile'`
+To deploy to a remote host: `scp -r static/ <host>:~/code/acp-mobile/ && ssh <host> 'cd ~/code/acp-mobile && CGO_ENABLED=0 go build -o acp-mobile . && cp acp-mobile ~/bin/acp-mobile.new && mv ~/bin/acp-mobile.new ~/bin/acp-mobile && systemctl --user restart acp-mobile'`
 
 ## Debugging
 

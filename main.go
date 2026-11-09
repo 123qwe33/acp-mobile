@@ -5,7 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
-	_ "embed"
+	"embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -28,7 +28,9 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-//go:embed index.html
+//go:embed all:static
+var staticFS embed.FS
+
 var indexHTML []byte
 
 var validBufferName = regexp.MustCompile(`^[\w\s.\-@<>/()]+$`)
@@ -195,6 +197,24 @@ func main() {
 	authKey := loadOrCreateAuthKey()
 	authRL := newRateLimiter()
 
+	var (
+		cssData []byte
+		jsData  []byte
+		fsErr   error
+	)
+	indexHTML, fsErr = staticFS.ReadFile("static/index.html")
+	if fsErr != nil {
+		log.Fatalf("embed index.html: %v", fsErr)
+	}
+	cssData, fsErr = staticFS.ReadFile("static/style.css")
+	if fsErr != nil {
+		log.Fatalf("embed style.css: %v", fsErr)
+	}
+	jsData, fsErr = staticFS.ReadFile("static/app.js")
+	if fsErr != nil {
+		log.Fatalf("embed app.js: %v", fsErr)
+	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -211,10 +231,21 @@ func main() {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Content-Security-Policy",
-			fmt.Sprintf("default-src 'self'; script-src 'nonce-%s'; style-src 'unsafe-inline'; frame-ancestors 'none'", nonce))
+			fmt.Sprintf("default-src 'self'; script-src 'nonce-%s'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'", nonce))
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(bytes.Replace(indexHTML, []byte("__CSP_NONCE__"), []byte(nonce), 1))
+	})
+
+	mux.HandleFunc("/style.css", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write(cssData)
+	})
+	mux.HandleFunc("/app.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write(jsData)
 	})
 
 	mux.Handle("/ws", &websocket.Server{
